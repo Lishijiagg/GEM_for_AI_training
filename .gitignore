@@ -1,0 +1,22 @@
+# model files: download from VMH (https://www.vmh.life), not stored in the repository
+models/*
+!models/.gitkeep
+
+# simulation results and logs
+results/
+results_dfba/
+logs/*
+!logs/.gitkeep
+
+# reports and tables written in the project folder
+models_report.tsv
+*_report.tsv
+dfba_training_table*.tsv
+
+# Python
+__pycache__/
+*.pyc
+
+# editors and OS
+.DS_Store
+*.swp
