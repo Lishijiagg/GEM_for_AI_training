@@ -27,6 +27,7 @@ DT=0.01            # h, integration step
 RECORD_DT=0.1      # h, interval of written time points
 METHODS=fba,pfba
 CARBON_CAP=60      # mmol C/gDW/h; 0 = off
+SOLVER=cplex       # LP solver: cplex, glpk, gurobi or auto
 ENV_NAME=gemai
 # --------------------------------------------------------------------------
 N_CHUNKS="${N_CHUNKS:-1}"   # parts per model; set by submit_dfba.sh
@@ -66,6 +67,6 @@ mkdir -p results_dfba
 python3 dfba_random_conc.py --model "$MODEL" --stage1 "results/$NAME" --out "results_dfba/$NAME" \
   --n-conc "$N_CONC" --conc-min "$CONC_MIN" --conc-max "$CONC_MAX" --x0 "$X0" \
   --t-end "$T_END" --dt "$DT" --record-dt "$RECORD_DT" --methods "$METHODS" --carbon-cap "$CARBON_CAP" \
-  --n-chunks "$N_CHUNKS" --chunk "$CHUNK" \
+  --n-chunks "$N_CHUNKS" --chunk "$CHUNK" --solver "$SOLVER" \
   --processes "${SLURM_CPUS_PER_TASK:-1}"
 echo "== done =="

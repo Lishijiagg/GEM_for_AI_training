@@ -1,6 +1,6 @@
 # hpc_random_media
 
-Random-nutrient FBA/pFBA simulations of single-strain genome-scale metabolic models for AI training data (GEMs-AI project, Hildebrand Lab).
+Random-nutrient FBA/pFBA simulations of single-strain genome-scale metabolic models for AI training data.
 
 For every model, the pipeline simulates many random nutrient conditions. For each condition it records whether the model can produce biomass, which nutrients it takes up and which compounds it secretes. The results serve as training data for an AI model that predicts microbial metabolic activity from nutrient availability.
 
@@ -60,7 +60,7 @@ hpc_random_media/
 ├── submit_dfba.sh             submits run_dfba.sbatch (all models x parts) and the merge job
 ├── run_dfba_merge.sbatch      merge job (runs merge_dfba.py on every model)
 ├── merge_dfba.py              combines the parts of a split stage-2 run
-├── environment.yml            Python environment (python 3.11, cobra, pandas, numpy)
+├── environment.yml            Python environment (python 3.10, cobra, pandas, numpy)
 ├── LICENSE                    MIT License
 ├── .gitignore                 keeps models, results and logs out of git
 ├── models/                    SBML models (.xml), one file per strain
@@ -85,7 +85,7 @@ Without git access on the HPC, download the repository as a zip on your own comp
 
 ### Step 2. Create the Python environment (once)
 
-With micromamba (used on the QIB/NBI HPC):
+With micromamba:
 
 ```bash
 micromamba create -f environment.yml
@@ -240,7 +240,7 @@ The random generator uses `--seed` (default 42). The same model, seed and parame
 3. If biomass > 1e-6: pFBA for fluxes. Otherwise all fluxes are 0.
 4. Write the condition folder and timing.
 
-Solver: the default cobrapy solver (GLPK unless another solver is installed).
+Solver: set with `--solver` (`SOLVER` in the sbatch files, default `cplex`): cplex, glpk, gurobi or auto (cobrapy default: the first installed of gurobi, cplex, glpk). CPLEX runs with 1 thread per LP, so parallel workers do not oversubscribe the CPUs. The solver used is written to run_info.txt. CPLEX (IBM ILOG CPLEX Optimization Studio 22.1.1, free academic licence) is installed separately; its Python API supports Python 3.8 to 3.10, hence python 3.10 in environment.yml. Install the API into the active environment with `cd <CPLEX_Studio2211>/python && python3 setup.py install` (`pip install .` does not work with this setup.py). Without CPLEX, set `SOLVER=glpk`.
 
 ## 5. Output reference
 
@@ -373,9 +373,9 @@ Model repair (Problem A) is the same as in stage 1.
 
 Stage 1 must be finished for every model first.
 
-Simulation settings are in the settings block of `run_dfba.sbatch` (defaults): N_CONC=10, CONC_MIN=0.01, CONC_MAX=10, X0=0.01, T_END=24, DT=0.01, RECORD_DT=0.1, METHODS=fba,pfba, CARBON_CAP=60. Resources per array task are in its `#SBATCH` lines (default 8 CPUs, 8 GB, 24 h).
+Simulation settings are in the settings block of `run_dfba.sbatch` (defaults): N_CONC=10, CONC_MIN=0.01, CONC_MAX=10, X0=0.01, T_END=24, DT=0.01, RECORD_DT=0.1, METHODS=fba,pfba, CARBON_CAP=60, SOLVER=cplex. Resources per array task are in its `#SBATCH` lines (default 8 CPUs, 8 GB, 4 h).
 
-The concentration sets of each model are split into `N_CHUNKS` parts; each part is one array task. Settings in `submit_dfba.sh`: `N_CHUNKS` (default 10) and `MAX_RUNNING` (maximum number of tasks running at the same time, 0 = no limit). Submit:
+The concentration sets of each model are split into `N_CHUNKS` parts; each part is one array task. Settings in `submit_dfba.sh`: `N_CHUNKS` (default 2) and `MAX_RUNNING` (maximum number of tasks running at the same time, 0 = no limit). Submit:
 
 ```bash
 micromamba activate gemai
@@ -397,7 +397,7 @@ Part i takes every N_CHUNKS-th concentration set (i, i + N_CHUNKS, ...). All con
 While parts run, each writes `run_info_chunkIIIofNNN.txt`, `dfba_chunkIIIofNNN.log`, `dfba_summary_chunkIIIofNNN.tsv`, `dfba_initial_conc_chunkIIIofNNN.tsv` and `dfba_net_change_chunkIIIofNNN.tsv`; the condition folders are shared. The merge job checks that all parts finished, writes the five files of section 10.4 and moves the part files to `chunks/`. If a part failed, the merge job reports the missing parts and merges nothing. Re-submit only the failed task and merge by hand:
 
 ```bash
-sbatch --array=<task number> --export=ALL,N_CHUNKS=10 run_dfba.sbatch
+sbatch --array=<task number> --export=ALL,N_CHUNKS=2 run_dfba.sbatch
 python3 merge_dfba.py results_dfba/<model name>
 ```
 
@@ -444,14 +444,6 @@ Test: stage-1 condition `cond_0008`, first concentration set, FBA, x0 = 0.01 gDW
 - Every run uses a fresh copy of the model. Without this, the LP solver starts from the basis of the previous run in the same worker, and with alternative optima the FBA trajectory depended on the run order: one test set gave a final biomass of 0.555997 gDW L-1 with 1 process and 0.555497 with 2 processes. With fresh copies the results of 1 and 2 processes were identical (final biomass and all net changes, 4 sets x 2 methods). Copying takes about 0.17 s per run.
 - Speed-up in the cloud test (4 sets, FBA + pFBA): 256 s with 1 process, 139 s with 2 processes.
 - Stage 1 (`random_media_pfba.py`) runs the conditions of one model one after another on one CPU; at about 0.05 to 0.4 s per condition it needs no further parallelisation.
-
-## 11. Version history
-
-- v1 (2026-11-02): random substrate subsets with random lower bounds (-10 to -0.1), fixed inorganic background.
-- v2 (2026-11-03): presence/absence design with lower bound -1000; manual `--extra-background` for auxotrophies; automatic sinks for dead-end biomass precursors.
-- v5 (2026-11-05): stage 2 split into N_CHUNKS array tasks per model (submit_dfba.sh, run_dfba_merge.sbatch, merge_dfba.py).
-- v4 (2026-11-05): stage 2 added, dFBA with random initial concentrations (dfba_random_conc.py, run_dfba.sbatch); defaults carbon cap 60 mmol C gDW-1 h-1, dt 0.01 h, record_dt 0.1 h; one concentration set per worker task and a fresh model copy per run (results independent of --processes).
-- v3 (2026-11-03): Problem A repaired automatically in three steps; Problem B not compensated, all nutrients including ions, NH4, phosphate, sulfate and vitamins are random candidates; subset + dropout sampling; batch model check; SLURM array over all models.
 
 ## 12. License
 

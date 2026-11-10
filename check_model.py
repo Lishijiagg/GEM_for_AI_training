@@ -59,9 +59,12 @@ def main():
     ap.add_argument("--report", default="models_report.tsv")
     ap.add_argument("--fixed", default="h2o:1000,h:1000")
     ap.add_argument("--exclude", default="o2")
+    ap.add_argument("--solver", default="auto",
+                    help="LP solver: auto (gurobi > cplex > glpk, first installed), cplex, glpk, gurobi")
     a = ap.parse_args()
     fixed = gt.parse_pairs(a.fixed)
     exclude = set(filter(None, (x.strip() for x in a.exclude.split(","))))
+    print(f"solver: {gt.set_solver(a.solver)}")
     rows = []
     for p in a.models:
         row = check(p, fixed, exclude)

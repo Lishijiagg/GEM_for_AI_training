@@ -2,7 +2,11 @@ name: gemai
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  # Python 3.10: the CPLEX 22.1.1 Python API supports Python 3.8-3.10 only
+  - python=3.10
   - cobra
   - pandas
   - numpy
+  - pip
+# CPLEX (optional, academic licence) is installed separately into this environment:
+#   cd <CPLEX_Studio2211>/python && python3 -m pip install .

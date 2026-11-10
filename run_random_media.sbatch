@@ -5,6 +5,8 @@
 #SBATCH --time=02:00:00
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
+# If your cluster requires a partition, add a line such as:  #SBATCH -p <partition>
+#
 # One array task per model in models/*.xml:
 #   sbatch --array=1-$(ls models/*.xml | wc -l) run_random_media.sbatch
 # Without --array, the first model is run.
@@ -16,6 +18,7 @@ cd "$SLURM_SUBMIT_DIR"
 N=1000             # conditions per model
 FRAC_DROPOUT=0.5   # share of dropout conditions (rich media with 1..M_MAX nutrients removed)
 M_MAX=20           # dropout design: max number of nutrients removed
+SOLVER=cplex       # LP solver: cplex, glpk, gurobi or auto
 ENV_NAME=gemai
 # --------------------------------------------------------------------------
 
@@ -47,6 +50,6 @@ python3 -c "import cobra; print('cobra', cobra.__version__)" || {
 
 echo "== model $((IDX + 1)) of ${#MODELS[@]}: $MODEL -> $OUT =="
 mkdir -p results
-python3 random_media_pfba.py --model "$MODEL" --out "$OUT" --n "$N" \
+python3 random_media_pfba.py --model "$MODEL" --out "$OUT" --solver "$SOLVER" --n "$N" \
   --frac-dropout "$FRAC_DROPOUT" --m-max "$M_MAX"
 echo "== done =="

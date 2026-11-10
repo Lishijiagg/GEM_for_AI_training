@@ -72,6 +72,7 @@ _W = {}
 
 
 def _init(cfg):
+    gt.set_solver(cfg["solver"])          # also in worker processes
     model = gt.load(cfg["model"])
     table, candidates = gt.setup_exchanges(model, cfg["fixed"], cfg["exclude"])
     status, sinks = gt.repair_biomass(model, candidates)
@@ -96,14 +97,14 @@ def simulate(c0, method):
     # fresh copy of the model for every run: the LP solver keeps its last basis,
     # and with alternative optima the FBA path would otherwise depend on which
     # run the same worker solved before (results would depend on --processes)
-    m = _W["model"].copy()
+    m = gt.single_thread(_W["model"].copy())
     rxns = [m.reactions.get_by_id(r) for r in _W["cand"]]
     if method == "pfba":
         # second copy holding the pFBA problem, built once per run: growth fixed
         # to the FBA optimum by a constraint whose lower bound is updated each
         # step, objective = minimal total flux (as cobra.flux_analysis.pfba,
         # which rebuilds this problem at every call and is about 8x slower)
-        mp = _W["model"].copy()
+        mp = gt.single_thread(_W["model"].copy())
         rxns_p = [mp.reactions.get_by_id(r) for r in _W["cand"]]
         fix = mp.problem.Constraint(mp.solver.objective.expression, lb=0.0,
                                     name="fixed_growth")
@@ -239,6 +240,8 @@ def main():
                     help="which part to run, 1..n-chunks; merge parts with merge_dfba.py")
     ap.add_argument("--fixed", default="h2o:1000,h:1000")
     ap.add_argument("--exclude", default="o2")
+    ap.add_argument("--solver", default="auto",
+                    help="LP solver: auto (gurobi > cplex > glpk, first installed), cplex, glpk, gurobi")
     a = ap.parse_args()
     if not 1 <= a.chunk <= a.n_chunks:
         raise SystemExit("--chunk must be between 1 and --n-chunks")
@@ -250,7 +253,7 @@ def main():
     methods = [x.strip() for x in a.methods.split(",") if x.strip()]
     cfg = dict(model=a.model, fixed=fixed, exclude=exclude, dt=a.dt, t_end=a.t_end,
                x0=a.x0, methods=methods, carbon_cap=a.carbon_cap,
-               record_dt=a.record_dt)
+               record_dt=a.record_dt, solver=a.solver)
 
     # growing combinations from stage 1
     S = pd.read_csv(os.path.join(a.stage1, "substrates_presence.tsv"), sep="\t", index_col=0)
@@ -264,7 +267,8 @@ def main():
     missing = set(grow.columns) - set(mets)
     if missing:
         raise SystemExit(f"stage-1 nutrients not found in the model: {sorted(missing)[:5]} ...")
-    print(f"model check: {_W['status']}; sinks: {_W['sinks'] or 'none'}; "
+    print(f"solver: {gt.solver_name(_W['model'].solver.interface)}; "
+          f"model check: {_W['status']}; sinks: {_W['sinks'] or 'none'}; "
           f"{len(grow)} growing combinations x {a.n_conc} concentration sets x {methods}")
 
     rng = np.random.default_rng(a.seed)
@@ -290,6 +294,7 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     with open(os.path.join(a.out, f"run_info{sfx}.txt"), "w") as f:
         f.write(f"model\t{os.path.abspath(a.model)}\nstage1\t{os.path.abspath(a.stage1)}\n"
+                f"solver\t{gt.solver_name(_W['model'].solver.interface)}\n"
                 f"model_check\t{_W['status']}\nadded_precursor_sinks\t{_W['sinks'] or 'none'}\n"
                 f"growing_combinations\t{len(grow)}\nconc_sets_per_combination\t{a.n_conc}\n"
                 f"initial_conc\tlog-uniform {a.conc_min}-{a.conc_max} mM\n"

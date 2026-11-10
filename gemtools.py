@@ -90,5 +90,28 @@ def parse_pairs(text, default=1000.0):
     return out
 
 
+def solver_name(interface):
+    """'optlang.cplex_interface' -> 'cplex'."""
+    return interface.__name__.split(".")[-1].replace("_interface", "")
+
+
+def set_solver(name="auto"):
+    """Select the LP solver for every model loaded afterwards and return its name.
+    auto = cobrapy default: the first installed of gurobi, cplex, glpk.
+    Raises an error if the named solver is not installed."""
+    if name and name != "auto":
+        cobra.Configuration().solver = name
+    return solver_name(cobra.Configuration().solver)
+
+
+def single_thread(model):
+    """CPLEX solves each LP with all cores of the node by default (threads = 0);
+    with one LP per worker process this oversubscribes the CPUs, so use 1 thread.
+    model.copy() does not keep this setting: call it again after every copy."""
+    if solver_name(model.solver.interface) == "cplex":
+        model.solver.problem.parameters.threads.set(1)
+    return model
+
+
 def load(path):
-    return cobra.io.read_sbml_model(path)
+    return single_thread(cobra.io.read_sbml_model(path))

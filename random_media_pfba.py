@@ -66,16 +66,19 @@ def main():
                     help="always-open compounds, metabolite ID without compartment : bound")
     ap.add_argument("--exclude", default="o2",
                     help="compounds never supplied, comma separated")
+    ap.add_argument("--solver", default="auto",
+                    help="LP solver: auto (gurobi > cplex > glpk, first installed), cplex, glpk, gurobi")
     a = ap.parse_args()
 
     fixed = gt.parse_pairs(a.fixed)
     exclude = set(filter(None, (x.strip() for x in a.exclude.split(","))))
+    solver = gt.set_solver(a.solver)
     model = gt.load(a.model)
     biomass = gt.biomass_id(model)
     table, candidates = gt.setup_exchanges(model, fixed, exclude)
 
     status, sinks = gt.repair_biomass(model, candidates, a.lb)
-    print(f"model check: {status}; sinks added: {sinks or 'none'}")
+    print(f"solver: {solver}; model check: {status}; sinks added: {sinks or 'none'}")
     os.makedirs(a.out, exist_ok=True)
     if status == "unrepairable":
         with open(os.path.join(a.out, "run_info.txt"), "w") as f:
@@ -87,7 +90,7 @@ def main():
     ex["role"] = np.where(ex.metabolite.isin(fixed), "fixed",
                           np.where(ex.exchange_id.isin(candidates), "candidate", "excluded"))
     with open(os.path.join(a.out, "run_info.txt"), "w") as f:
-        f.write(f"model\t{os.path.abspath(a.model)}\nbiomass_reaction\t{biomass}\n"
+        f.write(f"model\t{os.path.abspath(a.model)}\nsolver\t{solver}\nbiomass_reaction\t{biomass}\n"
                 f"model_check\t{status}\nadded_precursor_sinks\t{sinks or 'none'}\n"
                 f"n_conditions\t{a.n}\nfrac_dropout\t{a.frac_dropout}\nm_max\t{a.m_max}\n"
                 f"nutrient_lower_bound\t{-a.lb}\nseed\t{a.seed}\nfixed\t{fixed}\n"
