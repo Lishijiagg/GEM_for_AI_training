@@ -8,16 +8,17 @@ For every model, the pipeline simulates many random nutrient conditions. For eac
 
 | Abbreviation | Meaning |
 |---|---|
-| GEM | genome-scale metabolic model (基因组尺度代谢模型) |
-| FBA | flux balance analysis (通量平衡分析) |
-| pFBA | parsimonious FBA (简约通量平衡分析: FBA optimum with minimal total flux) |
-| FVA | flux variability analysis (通量变异性分析) |
-| LP | linear programming (线性规划) |
-| SBML | Systems Biology Markup Language (系统生物学标记语言, the .xml model format) |
-| AGORA / AGORA2 / APOLLO | VMH collections of gut microbial GEMs (肠道微生物代谢模型库) |
-| VMH | Virtual Metabolic Human (虚拟人体代谢数据库) |
-| HPC | high-performance computing cluster (高性能计算集群) |
-| SLURM | job scheduler of the HPC cluster (作业调度系统) |
+| GEM | genome-scale metabolic model |
+| FBA | flux balance analysis |
+| dFBA | dynamic flux balance analysis |
+| pFBA | parsimonious FBA (FBA optimum with minimal total flux) |
+| FVA | flux variability analysis |
+| LP | linear programming |
+| SBML | Systems Biology Markup Language (the .xml model format) |
+| AGORA / AGORA2 / APOLLO | VMH collections of gut microbial GEMs |
+| VMH | Virtual Metabolic Human |
+| HPC | high-performance computing cluster |
+| SLURM | job scheduler of the HPC cluster |
 
 ## 1. Concepts
 
