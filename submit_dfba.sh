@@ -9,7 +9,7 @@ set -eo pipefail
 cd "$(dirname "$0")"
 
 # ---- settings: edit these lines ------------------------------------------
-N_CHUNKS=10       # parts per model (array tasks per model)
+N_CHUNKS=2        # parts per model (array tasks per model)
 MAX_RUNNING=0     # max tasks running at the same time (0 = no limit)
 # --------------------------------------------------------------------------
 

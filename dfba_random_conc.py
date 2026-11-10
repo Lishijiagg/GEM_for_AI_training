@@ -60,7 +60,7 @@ from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
-from cobra.flux_analysis import pfba
+from optlang.symbolics import Zero
 
 import gemtools as gt
 
@@ -98,6 +98,19 @@ def simulate(c0, method):
     # run the same worker solved before (results would depend on --processes)
     m = _W["model"].copy()
     rxns = [m.reactions.get_by_id(r) for r in _W["cand"]]
+    if method == "pfba":
+        # second copy holding the pFBA problem, built once per run: growth fixed
+        # to the FBA optimum by a constraint whose lower bound is updated each
+        # step, objective = minimal total flux (as cobra.flux_analysis.pfba,
+        # which rebuilds this problem at every call and is about 8x slower)
+        mp = _W["model"].copy()
+        rxns_p = [mp.reactions.get_by_id(r) for r in _W["cand"]]
+        fix = mp.problem.Constraint(mp.solver.objective.expression, lb=0.0,
+                                    name="fixed_growth")
+        mp.add_cons_vars(fix)
+        mp.objective = mp.problem.Objective(Zero, direction="min", sloppy=True)
+        mp.objective.set_linear_coefficients(
+            {v: 1.0 for r in mp.reactions for v in (r.forward_variable, r.reverse_variable)})
     dt, nsteps = cfg["dt"], int(round(cfg["t_end"] / cfg["dt"]))
     rec = max(1, int(round(cfg["record_dt"] / dt)))
     C = c0.astype(float).copy()
@@ -117,18 +130,18 @@ def simulate(c0, method):
         lbs = np.where(C > CONC_TOL, -C / (X * dt), 0.0)
         for r, lb in zip(rxns, lbs):
             r.lower_bound = lb
-        sol = m.optimize()
-        mu = sol.objective_value if sol.status == "optimal" else 0.0
-        mu = mu if (mu is not None and mu > TOL) else 0.0
+        mu = m.slim_optimize(error_value=0.0)
+        mu = mu if mu > TOL else 0.0
         if mu > 0:
+            v = None
             if method == "pfba":
-                try:
-                    fl = pfba(m).fluxes
-                except Exception:
-                    fl = sol.fluxes
-            else:
-                fl = sol.fluxes
-            v = np.array([fl[r.id] for r in rxns])
+                for r, lb in zip(rxns_p, lbs):
+                    r.lower_bound = lb
+                fix.lb = mu
+                if mp.slim_optimize(error_value=None) is not None:
+                    v = np.array([r.flux for r in rxns_p])
+            if v is None:                     # FBA, or pFBA step not solved
+                v = np.array([r.flux for r in rxns])
             v[np.abs(v) < TOL] = 0.0
             v = np.maximum(v, lbs)            # guard against solver tolerance
         else:
